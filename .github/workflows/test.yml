@@ -1,0 +1,65 @@
+name: Test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # services:
+    #   postgres:
+    #     image: postgres:15
+    #     env:
+    #       POSTGRES_USER: zkp2p_user
+    #       POSTGRES_PASSWORD: zkp2p_password
+    #       POSTGRES_DB: zkp2p_test
+    #     ports:
+    #       - 5432:5432
+    #     options: >-
+    #       --health-cmd "pg_isready -U zkp2p_user -d zkp2p_test"
+    #       --health-interval 5s
+    #       --health-timeout 5s
+    #       --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Latest Stable Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install Dependencies
+        run: yarn install
+
+      # - name: Install Redis
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install redis-server -y
+
+      # - name: Start Redis Server
+      #   run: |
+      #     sudo systemctl start redis-server
+      #     sudo systemctl status redis-server
+
+      # - name: Wait for Postgres
+      #   run: |
+      #     until pg_isready -h localhost -p 5432 -U zkp2p_user -d zkp2p_test; do
+      #       echo "Postgres is unavailable - sleeping"
+      #       sleep 1
+      #     done
+      #     echo "Postgres is up!"
+        
+      # - name: Run Migrations
+      #   run: yarn reset-test-db
+
+      - name: Run Tests
+        run: yarn test
+
