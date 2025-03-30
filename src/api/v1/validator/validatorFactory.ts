@@ -233,8 +233,6 @@ export class ValidatorFactory {
           const responseData = await response.json();
           const transactions = responseData.activities ? Array.isArray(responseData.activities) ? responseData.activities : [] : [];
 
-          logger.info(`Transactions: ${JSON.stringify(transactions)}`);
-
           // Map the Wise API response to our expected format with safety checks
           return transactions.map((tx: any): WiseFormattedTransaction => {
             try {

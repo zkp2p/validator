@@ -79,10 +79,10 @@ export class ValidatorController {
         return handleServiceResponse(serviceResponse, res);
       }
 
-      const { recipientId, amount, currency, timestamp } = verifyRequest.wisePaymentDetails;
+      const { amount, currency, timestamp } = verifyRequest.wisePaymentDetails;
 
       // All fields are required for Wise payment details
-      if (!recipientId || !amount || !currency || !timestamp) {
+      if (!amount || !currency || !timestamp) {
         const serviceResponse = ServiceResponse.failure(
           "Missing required Wise payment details. All fields (recipientId, amount, currency, timestamp) are required",
           { verified: false },

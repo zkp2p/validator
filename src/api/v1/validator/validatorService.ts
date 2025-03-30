@@ -114,7 +114,10 @@ export class ValidatorService {
 
     // Parse the expected amount to a number for comparison
     const expectedAmount = parseFloat(wiseDetails.amount);
-
+    const expectedTimestamp = new Date(wiseDetails.timestamp).getTime();
+    const expectedCurrency = wiseDetails.currency;
+    const expectedStatus = wiseDetails.paymentStatus ? wiseDetails.paymentStatus : 'COMPLETED';
+    const expectedType = 'received';
     if (isNaN(expectedAmount)) {
       logger.warn(`Invalid amount format in request: ${wiseDetails.amount}`);
       return null;
@@ -125,32 +128,24 @@ export class ValidatorService {
 
     // Find a transaction that matches the Wise payment details
     const matchingTransaction = transactions.find(tx => {
-      // Log all comparison values
-      logger.info(`Comparing transaction:
-        Expected status: COMPLETED, Actual status: ${tx.status}
-        Expected type: received, Actual type: ${tx.type}
-        Expected currency: ${wiseDetails.currency}, Actual currency: ${tx.currency}
-        Expected minimum amount: ${expectedAmount}, Actual amount: ${tx.amount}
-        Expected minimum timestamp: ${new Date(wiseDetails.timestamp).getTime()}, Actual timestamp: ${new Date(tx.date).getTime()}`);
 
       // Return all comparisons for debugging
-      // const statusMatch = tx.status === 'COMPLETED';
-      // const typeMatch = tx.type === 'received';
-      const currencyMatch = tx.currency === wiseDetails.currency;
+      const statusMatch = tx.status === expectedStatus;
+      const typeMatch = tx.type === expectedType;
+      const currencyMatch = tx.currency === expectedCurrency;
       const amountMatch = Number(tx.amount) >= expectedAmount;
-      const timestampMatch = new Date(tx.date).getTime() >= new Date(wiseDetails.timestamp).getTime();
+      const timestampMatch = new Date(tx.date).getTime() >= expectedTimestamp;
 
-      logger.info(`Match results: 
-        Currency: ${currencyMatch}, 
-        Amount: ${amountMatch}, 
-        Timestamp: ${timestampMatch}`);
+      // Log all comparison values
+      logger.info(`Comparing transaction:
+        Expected status: ${expectedStatus}, Actual status: ${tx.status}, Status match: ${statusMatch}
+        Expected type: ${expectedType}, Actual type: ${tx.type}, Type match: ${typeMatch}
+        Expected currency: ${expectedCurrency}, Actual currency: ${tx.currency}, Currency match: ${currencyMatch}
+        Expected minimum amount: ${expectedAmount}, Actual amount: ${tx.amount}, Amount match: ${amountMatch}
+        Expected minimum timestamp: ${expectedTimestamp}, Actual timestamp: ${new Date(tx.date).getTime()}, Timestamp match: ${timestampMatch}`);
 
       // Return the actual comparison result
-      return tx.currency === wiseDetails.currency &&
-        // tx.status === 'COMPLETED' &&
-        // tx.type === 'received' &&
-        Number(tx.amount) >= expectedAmount &&
-        new Date(tx.date).getTime() >= new Date(wiseDetails.timestamp).getTime();
+      return statusMatch && typeMatch && currencyMatch && amountMatch && timestampMatch;
     });
 
     if (!matchingTransaction) {

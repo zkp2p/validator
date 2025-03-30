@@ -97,8 +97,7 @@ curl -X POST http://localhost:8080/v1/validator/verify-payment \
     "wisePaymentDetails": {
       "amount": "11.44",
       "currency": "EUR",
-      "timestamp": "2025-03-30T06:40:57.279Z",
-      "recipientId": "17123946"
+      "timestamp": "2025-03-30T06:40:57.279Z"
     }
   }'
 ```
