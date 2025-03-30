@@ -7,7 +7,7 @@ import {
   EncryptResponse,
   VerifyPaymentRequest,
   VerifyPaymentResponse,
-  WisePaymentDetailsRequest,
+  WisePaymentDetailsRequest
 } from "./validatorModel";
 
 /**
@@ -29,12 +29,13 @@ export class ValidatorService {
       logger.info("Encrypting credentials");
 
       const encryptionService = this.factory.getAppKeyEncryptionService();
-      const encryptedCredentials = await encryptionService.encrypt(request.wiseApiKey);
+      const { encryptedData, encryptionIV } = await encryptionService.encrypt(request.wiseApiKey);
 
       logger.info("Successfully encrypted credentials");
 
       return ServiceResponse.success("Credentials encrypted successfully", {
-        encryptedCredentials,
+        encryptedCredentials: encryptedData,
+        encryptionIV: encryptionIV,
         success: true
       });
     } catch (error) {
@@ -43,7 +44,7 @@ export class ValidatorService {
 
       return ServiceResponse.failure(
         errorMessage,
-        { encryptedCredentials: "", success: false },
+        { encryptedCredentials: "", encryptionIV: "", success: false },
         StatusCodes.INTERNAL_SERVER_ERROR
       );
     }
@@ -64,7 +65,7 @@ export class ValidatorService {
       logger.info("Verifying payment");
 
       const encryptionService = this.factory.getAppKeyEncryptionService();
-      const wiseApiKey = await encryptionService.decrypt(request.encryptedCredentials);
+      const wiseApiKey = await encryptionService.decrypt(request.encryptedCredentials, request.encryptionIV);
       const wiseClient = this.factory.createWiseApiClient();
       const transactions = await wiseClient.getTransactions(wiseApiKey);
 
@@ -76,7 +77,7 @@ export class ValidatorService {
         logger.info("Payment verified successfully");
 
         const quote = this.generateTransactionQuote(matchingTransaction);
-        const raReport = await this.generateRAReport(quote);
+        const raReport = await this.generateRAReport(JSON.stringify(quote));
         return ServiceResponse.success("Payment verified", {
           verified: true,
           quote,
@@ -106,7 +107,7 @@ export class ValidatorService {
   private findMatchingTransaction(
     transactions: WiseFormattedTransaction[],
     wiseDetails: WisePaymentDetailsRequest
-  ): WisePaymentDetailsResponse | null {
+  ): WiseFormattedTransaction | null {
     if (!wiseDetails) return null;
 
     logger.info("Looking for COMPLETED received transaction matching the payment details");
@@ -136,7 +137,7 @@ export class ValidatorService {
       // const statusMatch = tx.status === 'COMPLETED';
       // const typeMatch = tx.type === 'received';
       const currencyMatch = tx.currency === wiseDetails.currency;
-      const amountMatch = tx.amount >= expectedAmount;
+      const amountMatch = Number(tx.amount) >= expectedAmount;
       const timestampMatch = new Date(tx.date).getTime() >= new Date(wiseDetails.timestamp).getTime();
 
       logger.info(`Match results: 
@@ -148,7 +149,7 @@ export class ValidatorService {
       return tx.currency === wiseDetails.currency &&
         // tx.status === 'COMPLETED' &&
         // tx.type === 'received' &&
-        tx.amount >= expectedAmount &&
+        Number(tx.amount) >= expectedAmount &&
         new Date(tx.date).getTime() >= new Date(wiseDetails.timestamp).getTime();
     });
 
@@ -165,17 +166,16 @@ export class ValidatorService {
       currency: matchingTransaction.currency,
       date: matchingTransaction.date,
       status: matchingTransaction.status,
-      recipientId: matchingTransaction.recipientId
+      recipientId: matchingTransaction.recipientId,
+      type: matchingTransaction.type
     };
   }
 
   /**
    * Generates a minimal quote with essential transaction details
    */
-  private generateTransactionQuote(transaction: WisePaymentDetailsResponse): string {
-    // Create a minimal quote with essential details
-    // This is returned to the caller as proof of verification
-    const quoteData = {
+  private generateTransactionQuote(transaction: WiseFormattedTransaction) {
+    return {
       platform: "wise",
       paymentId: transaction.paymentId,
       amount: transaction.amount,
@@ -185,8 +185,6 @@ export class ValidatorService {
       recipientId: transaction.recipientId,
       verifiedAt: new Date().toISOString()
     };
-
-    return JSON.stringify(quoteData);
   }
 
   /**

@@ -1,13 +1,15 @@
 import { TappdClient } from '@phala/dstack-sdk';
 import { logger } from "@/server";
+import crypto from 'crypto';
+import { env } from "@/common/utils/envConfig";
 
 /**
  * Interface for the AppKey encryption service that handles 
  * encryption/decryption operations using the TEE's AppKey
  */
 export interface AppKeyEncryptionService {
-  encrypt(data: string): Promise<string>;
-  decrypt(encryptedData: string): Promise<string>;
+  encrypt(data: string): Promise<{ encryptedData: string, encryptionIV: string }>;
+  decrypt(encryptedData: string, encryptionIV: string): Promise<string>;
 }
 
 export interface WiseTransaction {
@@ -28,7 +30,7 @@ export interface WiseTransaction {
 
 export interface WiseFormattedTransaction {
   paymentId: string;
-  amount: number;
+  amount: string;
   currency: string;
   date: string;
   status: string;
@@ -51,6 +53,7 @@ export interface WiseApiClient {
 export class ValidatorFactory {
   private static dstackClient: TappdClient | null = null;
   private static appKeyService: AppKeyEncryptionService | null = null;
+  private static encryptionKey: Uint8Array | null = null;
 
   /**
    * Creates or returns a singleton instance of the dStack client
@@ -64,32 +67,80 @@ export class ValidatorFactory {
   }
 
   /**
+   * Gets or derives the encryption key
+   */
+  private async getEncryptionKey(): Promise<Uint8Array> {
+    if (!ValidatorFactory.encryptionKey) {
+      logger.info("Deriving encryption key from dStack client");
+
+      // Create a dStack client
+      const client = this.createDstackClient();
+
+      // Derive a deterministic key for encryption
+      const keyResult = await client.deriveKey('encryption-key');
+      const keyBytes = keyResult.asUint8Array();
+
+      // Use only the first 32 bytes for AES-256
+      ValidatorFactory.encryptionKey = keyBytes.slice(0, 32);
+    }
+
+    return ValidatorFactory.encryptionKey;
+  }
+
+  /**
    * Returns the AppKey encryption service for the TEE
    */
   getAppKeyEncryptionService(): AppKeyEncryptionService {
     if (!ValidatorFactory.appKeyService) {
       logger.info("Initializing AppKey encryption service");
+
       // In a real implementation, this would use the Phala Cloud's AppKey
       ValidatorFactory.appKeyService = {
-        encrypt: async (data: string): Promise<string> => {
-          // In production, this would use the TEE's AppKey via Phala Cloud
-          // For now, we'll simulate encryption
+        encrypt: async (data: string): Promise<{ encryptedData: string, encryptionIV: string }> => {
           try {
             logger.info("Encrypting data with AppKey");
-            // This is a placeholder for the actual encryption with AppKey
-            return Buffer.from(data).toString('base64');
+
+            // Get the cached encryption key
+            const aesKey = await this.getEncryptionKey();
+
+            // Generate a random IV
+            const iv = crypto.randomBytes(16);
+
+            // Create cipher
+            const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(aesKey), iv);
+
+            // Encrypt the data
+            let encrypted = cipher.update(data, 'utf8', 'base64');
+            encrypted += cipher.final('base64');
+
+            // Return both the encrypted data and the IV
+            return {
+              encryptedData: encrypted,
+              encryptionIV: iv.toString('base64')
+            };
           } catch (error) {
             logger.error(`Error encrypting with AppKey: ${(error as Error).message}`);
             throw new Error(`AppKey encryption failed: ${(error as Error).message}`);
           }
         },
-        decrypt: async (encryptedData: string): Promise<string> => {
-          // In production, this would use the TEE's AppKey via Phala Cloud
-          // For now, we'll simulate decryption
+        decrypt: async (encryptedData: string, encryptionIV: string): Promise<string> => {
           try {
             logger.info("Decrypting data with AppKey");
-            // This is a placeholder for the actual decryption with AppKey
-            return Buffer.from(encryptedData, 'base64').toString();
+
+            // Get the cached encryption key
+            const aesKey = await this.getEncryptionKey();
+
+            // Parse the IV from base64
+            const ivBuffer = Buffer.from(encryptionIV, 'base64');
+
+            // Create decipher
+            const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(aesKey), ivBuffer);
+
+            // Decrypt the data
+            let decrypted = decipher.update(encryptedData, 'base64', 'utf8');
+            decrypted += decipher.final('utf8');
+
+            return decrypted;
           } catch (error) {
             logger.error(`Error decrypting with AppKey: ${(error as Error).message}`);
             throw new Error(`AppKey decryption failed: ${(error as Error).message}`);
@@ -114,7 +165,7 @@ export class ValidatorFactory {
         try {
           logger.info("Fetching profile ID from Wise API");
 
-          const response = await fetch('https://api.sandbox.transferwise.tech/v1/profiles', {
+          const response = await fetch(`${env.WISE_API_BASE_URL}/v1/profiles`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
@@ -166,7 +217,7 @@ export class ValidatorFactory {
           logger.info(`Profile ID: ${profileId}`);
 
           // Then fetch the transactions
-          const response = await fetch(`https://api.sandbox.transferwise.tech/v1/profiles/${profileId}/activities`, {
+          const response = await fetch(`${env.WISE_API_BASE_URL}/v1/profiles/${profileId}/activities`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
@@ -222,7 +273,7 @@ export class ValidatorFactory {
 
               return {
                 paymentId: resourceId,
-                amount,
+                amount: amount.toString(),
                 currency,
                 date: createdOn,
                 status,
@@ -236,7 +287,7 @@ export class ValidatorFactory {
               // Return a placeholder transaction with minimal data
               return {
                 paymentId: tx.id || `error-${Date.now()}`,
-                amount: 0,
+                amount: "0",
                 currency: "USD",
                 date: new Date().toISOString(),
                 status: "ERROR",

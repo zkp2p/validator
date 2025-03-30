@@ -15,4 +15,5 @@ export const env = cleanEnv(process.env, {
   PRIVY_APP_ID: str({ default: "" }),
   PRIVY_JWT_VERIFICATION_KEY: str({ default: "" }),
   DISABLE_JWT_AUTH: bool({ default: false }),
+  WISE_API_BASE_URL: str({ default: "https://api.wise.com" }),
 });

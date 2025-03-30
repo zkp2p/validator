@@ -22,7 +22,7 @@ export class ValidatorController {
       if (!encryptRequest || !encryptRequest.wiseApiKey) {
         const serviceResponse = ServiceResponse.failure(
           "Missing required API key",
-          { encryptedCredentials: "", success: false },
+          { encryptedCredentials: "", encryptionIV: "", success: false },
           StatusCodes.BAD_REQUEST
         );
         return handleServiceResponse(serviceResponse, res);
@@ -35,7 +35,7 @@ export class ValidatorController {
       const errorMessage = `Error processing encryption request: ${(error as Error).message}`;
       const serviceResponse = ServiceResponse.failure(
         errorMessage,
-        { encryptedCredentials: "", success: false },
+        { encryptedCredentials: "", encryptionIV: "", success: false },
         StatusCodes.INTERNAL_SERVER_ERROR
       );
       return handleServiceResponse(serviceResponse, res);
@@ -53,6 +53,16 @@ export class ValidatorController {
       if (!verifyRequest || !verifyRequest.encryptedCredentials) {
         const serviceResponse = ServiceResponse.failure(
           "Missing encrypted credentials",
+          { verified: false },
+          StatusCodes.BAD_REQUEST
+        );
+        return handleServiceResponse(serviceResponse, res);
+      }
+
+      // Validate encryption IV is present
+      if (!verifyRequest.encryptionIV) {
+        const serviceResponse = ServiceResponse.failure(
+          "Missing encryption initialization vector (IV)",
           { verified: false },
           StatusCodes.BAD_REQUEST
         );
