@@ -15,43 +15,41 @@ export const EncryptResponseSchema = z.object({
   message: z.string().optional(),
 });
 
+// Schema for wise payment details
+export const WisePaymentDetailsRequestSchema = z.object({
+  amount: z.string(),
+  timestamp: z.string(),
+  currency: z.string(),
+  paymentStatus: z.string().optional().default('COMPLETED'),
+});
+
 // Schema for verification request
 export const VerifyPaymentRequestSchema = z.object({
   encryptedCredentials: z.string(),
-  paymentDetails: z.object({
-    reference: z.string(),
-    amount: z.number(),
-    currency: z.string(),
-    // Optional additional payment identifiers
-    senderName: z.string().optional(),
-    senderEmail: z.string().optional(),
-    transferId: z.string().optional(),
-  }),
+  wisePaymentDetails: WisePaymentDetailsRequestSchema,
+});
+
+export const QuoteSchema = z.object({
+  platform: z.string(),
+  paymentId: z.string(),
+  amount: z.string(),
+  currency: z.string(),
+  date: z.string(),
+  status: z.string(),
+  recipientId: z.string(),
+  verifiedAt: z.string()
 });
 
 // Schema for verification response
 export const VerifyPaymentResponseSchema = z.object({
   verified: z.boolean(),
-  quote: z.string().optional(), // Minimal confirmation details if verified
-  message: z.string().optional(),
+  quote: QuoteSchema.optional(), // Minimal confirmation details containing the found payment details, only included if verified
+  raReport: z.string().optional(), // Remote Attestation report, only included for successful verification
 });
 
 // Define types for each schema
 export type EncryptRequest = z.infer<typeof EncryptRequestSchema>;
 export type EncryptResponse = z.infer<typeof EncryptResponseSchema>;
+export type WisePaymentDetailsRequest = z.infer<typeof WisePaymentDetailsRequestSchema>;
 export type VerifyPaymentRequest = z.infer<typeof VerifyPaymentRequestSchema>;
 export type VerifyPaymentResponse = z.infer<typeof VerifyPaymentResponseSchema>;
-
-// External API client interface
-export interface WiseApiTransaction {
-  id: string;
-  reference: string;
-  amount: number;
-  currency: string;
-  senderName?: string;
-  senderEmail?: string;
-  transferId?: string;
-  date: string;
-  status: string;
-  // Other transaction properties as needed
-} 

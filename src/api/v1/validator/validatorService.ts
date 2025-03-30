@@ -1,13 +1,13 @@
 import { StatusCodes } from "http-status-codes";
 import { logger } from "@/server";
 import { ServiceResponse } from "@/common/models/serviceResponse";
-import { ValidatorFactory } from "./validatorFactory";
+import { ValidatorFactory, WiseFormattedTransaction } from "./validatorFactory";
 import {
   EncryptRequest,
   EncryptResponse,
   VerifyPaymentRequest,
   VerifyPaymentResponse,
-  WiseApiTransaction
+  WisePaymentDetailsRequest,
 } from "./validatorModel";
 
 /**
@@ -28,19 +28,7 @@ export class ValidatorService {
     try {
       logger.info("Encrypting credentials");
 
-      // Validate the request data
-      if (!request.wiseApiKey) {
-        return ServiceResponse.failure(
-          "Missing required API key",
-          { encryptedCredentials: "", success: false },
-          StatusCodes.BAD_REQUEST
-        );
-      }
-
-      // Get the AppKey encryption service
       const encryptionService = this.factory.getAppKeyEncryptionService();
-
-      // Encrypt the Wise API key using the AppKey
       const encryptedCredentials = await encryptionService.encrypt(request.wiseApiKey);
 
       logger.info("Successfully encrypted credentials");
@@ -69,59 +57,35 @@ export class ValidatorService {
    */
   async verifyPayment(request: VerifyPaymentRequest): Promise<ServiceResponse<VerifyPaymentResponse>> {
     try {
+      logger.debug("Logger level debug test");
+      logger.info("Logger level info test");
+      logger.warn("Logger level warn test");
+
       logger.info("Verifying payment");
 
-      // Validate the request data
-      if (!request.encryptedCredentials) {
-        return ServiceResponse.failure(
-          "Missing encrypted credentials",
-          { verified: false },
-          StatusCodes.BAD_REQUEST
-        );
-      }
-
-      if (!request.paymentDetails) {
-        return ServiceResponse.failure(
-          "Missing payment details",
-          { verified: false },
-          StatusCodes.BAD_REQUEST
-        );
-      }
-
-      // Get the AppKey encryption service
       const encryptionService = this.factory.getAppKeyEncryptionService();
-
-      // Decrypt the API key
       const wiseApiKey = await encryptionService.decrypt(request.encryptedCredentials);
-
-      // Create a Wise API client
       const wiseClient = this.factory.createWiseApiClient();
-
-      // Fetch transactions using the decrypted API key
       const transactions = await wiseClient.getTransactions(wiseApiKey);
 
       // Check if any transaction matches the payment details
-      const matchingTransaction = this.findMatchingTransaction(
-        transactions,
-        request.paymentDetails
-      );
+      logger.info("Using Wise payment details for verification");
+      const matchingTransaction = this.findMatchingTransaction(transactions, request.wisePaymentDetails);
 
       if (matchingTransaction) {
         logger.info("Payment verified successfully");
 
-        // Generate a minimal quote with essential transaction details
         const quote = this.generateTransactionQuote(matchingTransaction);
-
+        const raReport = await this.generateRAReport(quote);
         return ServiceResponse.success("Payment verified", {
           verified: true,
-          quote
+          quote,
+          raReport
         });
       } else {
         logger.info("No matching transaction found");
-
         return ServiceResponse.success("Payment not verified", {
           verified: false,
-          message: "No matching transaction found"
         });
       }
     } catch (error) {
@@ -137,32 +101,88 @@ export class ValidatorService {
   }
 
   /**
-   * Finds a transaction that matches the provided payment details
+   * Finds a transaction that matches the provided Wise payment details
    */
   private findMatchingTransaction(
-    transactions: any[],
-    paymentDetails: VerifyPaymentRequest['paymentDetails']
-  ): WiseApiTransaction | null {
-    // Find a transaction that matches the reference, amount, and currency
-    return transactions.find(tx =>
-      tx.reference === paymentDetails.reference &&
-      tx.amount === paymentDetails.amount &&
-      tx.currency === paymentDetails.currency
-    ) || null;
+    transactions: WiseFormattedTransaction[],
+    wiseDetails: WisePaymentDetailsRequest
+  ): WisePaymentDetailsResponse | null {
+    if (!wiseDetails) return null;
+
+    logger.info("Looking for COMPLETED received transaction matching the payment details");
+
+    // Parse the expected amount to a number for comparison
+    const expectedAmount = parseFloat(wiseDetails.amount);
+
+    if (isNaN(expectedAmount)) {
+      logger.warn(`Invalid amount format in request: ${wiseDetails.amount}`);
+      return null;
+    }
+
+    logger.info(`Expected amount: ${expectedAmount}`);
+
+
+    // Find a transaction that matches the Wise payment details
+    const matchingTransaction = transactions.find(tx => {
+      // Log all comparison values
+      logger.info(`Comparing transaction:
+        Expected status: COMPLETED, Actual status: ${tx.status}
+        Expected type: received, Actual type: ${tx.type}
+        Expected currency: ${wiseDetails.currency}, Actual currency: ${tx.currency}
+        Expected minimum amount: ${expectedAmount}, Actual amount: ${tx.amount}
+        Expected minimum timestamp: ${new Date(wiseDetails.timestamp).getTime()}, Actual timestamp: ${new Date(tx.date).getTime()}`);
+
+      // Return all comparisons for debugging
+      // const statusMatch = tx.status === 'COMPLETED';
+      // const typeMatch = tx.type === 'received';
+      const currencyMatch = tx.currency === wiseDetails.currency;
+      const amountMatch = tx.amount >= expectedAmount;
+      const timestampMatch = new Date(tx.date).getTime() >= new Date(wiseDetails.timestamp).getTime();
+
+      logger.info(`Match results: 
+        Currency: ${currencyMatch}, 
+        Amount: ${amountMatch}, 
+        Timestamp: ${timestampMatch}`);
+
+      // Return the actual comparison result
+      return tx.currency === wiseDetails.currency &&
+        // tx.status === 'COMPLETED' &&
+        // tx.type === 'received' &&
+        tx.amount >= expectedAmount &&
+        new Date(tx.date).getTime() >= new Date(wiseDetails.timestamp).getTime();
+    });
+
+    if (!matchingTransaction) {
+      return null;
+    }
+
+    logger.info("Found matching transaction");
+
+    // Transform to WisePaymentDetailsResponse
+    return {
+      paymentId: matchingTransaction.paymentId,
+      amount: matchingTransaction.amount.toString(),
+      currency: matchingTransaction.currency,
+      date: matchingTransaction.date,
+      status: matchingTransaction.status,
+      recipientId: matchingTransaction.recipientId
+    };
   }
 
   /**
    * Generates a minimal quote with essential transaction details
    */
-  private generateTransactionQuote(transaction: WiseApiTransaction): string {
+  private generateTransactionQuote(transaction: WisePaymentDetailsResponse): string {
     // Create a minimal quote with essential details
     // This is returned to the caller as proof of verification
     const quoteData = {
-      id: transaction.id,
-      reference: transaction.reference,
+      platform: "wise",
+      paymentId: transaction.paymentId,
       amount: transaction.amount,
       currency: transaction.currency,
       date: transaction.date,
+      status: transaction.status,
+      recipientId: transaction.recipientId,
       verifiedAt: new Date().toISOString()
     };
 
@@ -171,25 +191,18 @@ export class ValidatorService {
 
   /**
    * Generates an RA report with optional user data
+   * @private
    */
-  async generateRAReport(userData: string = ""): Promise<ServiceResponse<{ quote: string }>> {
+  private async generateRAReport(userData: string = ""): Promise<string> {
     try {
       logger.info("Generating RA report");
-
-      const quote = await this.factory.generateRAReport(userData);
-
-      return ServiceResponse.success("RA report generated", {
-        quote
-      });
+      return await this.factory.generateRAReport(userData);
     } catch (error) {
-      const errorMessage = `Error generating RA report: ${(error as Error).message}`;
-      logger.error(errorMessage);
-
-      return ServiceResponse.failure(
-        errorMessage,
-        { quote: "" },
-        StatusCodes.INTERNAL_SERVER_ERROR
-      );
+      logger.error(`Error generating RA report: ${(error as Error).message}`);
+      return JSON.stringify({
+        error: `RA report generation failed: ${(error as Error).message}`,
+        timestamp: new Date().toISOString()
+      });
     }
   }
 } 

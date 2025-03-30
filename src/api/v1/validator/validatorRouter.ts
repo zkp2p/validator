@@ -53,29 +53,6 @@ validatorRegistry.registerPath({
   responses: createApiResponse(VerifyPaymentResponseSchema, "Success"),
 });
 
-// Register POST /validator/ra-report endpoint
-validatorRegistry.registerPath({
-  method: "post",
-  path: "/validator/ra-report",
-  tags: ["Validator"],
-  security: [{ bearerAuth: [] }],
-  request: {
-    body: {
-      content: {
-        "application/json": {
-          schema: z.object({
-            userData: z.string().optional(),
-          }),
-        },
-      },
-    },
-  },
-  responses: createApiResponse(z.object({
-    quote: z.string(),
-  }), "Success"),
-});
-
 // Setup routes
 validatorRouter.post("/encrypt", validatorController.encryptCredentials);
-validatorRouter.post("/verify-payment", validatorController.verifyPayment);
-validatorRouter.post("/ra-report", validatorController.generateRAReport); 
+validatorRouter.post("/verify-payment", validatorController.verifyPayment); 

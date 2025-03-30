@@ -59,20 +59,22 @@ export class ValidatorController {
         return handleServiceResponse(serviceResponse, res);
       }
 
-      if (!verifyRequest.paymentDetails) {
+      // Validate required Wise payment details
+      if (!verifyRequest.wisePaymentDetails) {
         const serviceResponse = ServiceResponse.failure(
-          "Missing payment details",
+          "Missing Wise payment details",
           { verified: false },
           StatusCodes.BAD_REQUEST
         );
         return handleServiceResponse(serviceResponse, res);
       }
 
-      // Validate required payment details
-      const { reference, amount, currency } = verifyRequest.paymentDetails;
-      if (!reference || amount === undefined || !currency) {
+      const { recipientId, amount, currency, timestamp } = verifyRequest.wisePaymentDetails;
+
+      // All fields are required for Wise payment details
+      if (!recipientId || !amount || !currency || !timestamp) {
         const serviceResponse = ServiceResponse.failure(
-          "Missing required payment details (reference, amount, currency)",
+          "Missing required Wise payment details. All fields (recipientId, amount, currency, timestamp) are required",
           { verified: false },
           StatusCodes.BAD_REQUEST
         );
@@ -87,26 +89,6 @@ export class ValidatorController {
       const serviceResponse = ServiceResponse.failure(
         errorMessage,
         { verified: false },
-        StatusCodes.INTERNAL_SERVER_ERROR
-      );
-      return handleServiceResponse(serviceResponse, res);
-    }
-  };
-
-  /**
-   * Generates a Remote Attestation (RA) report using the dStack SDK
-   */
-  public generateRAReport: RequestHandler = async (req: Request, res: Response) => {
-    try {
-      const userData = req.body?.userData || "";
-
-      const serviceResponse = await this.service.generateRAReport(userData);
-      return handleServiceResponse(serviceResponse, res);
-    } catch (error) {
-      const errorMessage = `Error generating RA report: ${(error as Error).message}`;
-      const serviceResponse = ServiceResponse.failure(
-        errorMessage,
-        { quote: "" },
         StatusCodes.INTERNAL_SERVER_ERROR
       );
       return handleServiceResponse(serviceResponse, res);
