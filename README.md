@@ -38,6 +38,64 @@ This service runs on Phala Cloud and is responsible for encrypting credentials a
   - Use `.env.development` for local development.
   - `.env` is used for production.
 
+### Running the service
+
+First, download and run the dStack simulator:
+
+```shell
+# Mac
+wget https://github.com/Leechael/tappd-simulator/releases/download/v0.1.4/tappd-simulator-0.1.4-aarch64-apple-darwin.tgz
+tar -xvf tappd-simulator-0.1.4-aarch64-apple-darwin.tgz
+cd tappd-simulator-0.1.4-aarch64-apple-darwin
+./tappd-simulator -l unix:/tmp/tappd.sock
+
+# Linux
+wget https://github.com/Leechael/tappd-simulator/releases/download/v0.1.4/tappd-simulator-0.1.4-x86_64-linux-musl.tgz
+tar -xvf tappd-simulator-0.1.4-x86_64-linux-musl.tgz
+cd tappd-simulator-0.1.4-x86_64-linux-musl
+./tappd-simulator -l unix:/tmp/tappd.sock
+```
+
+Once the simulator is running, you can start the service with:
+
+```shell
+yarn dev
+```
+
+Then, hit the `/validator/encrypt` endpoint to encrypt your credentials:
+
+```bash
+curl -X POST http://localhost:8080/v1/validator/encrypt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "wiseApiKey": "YOUR_WISE_API_KEY_HERE",
+    "processorName": "wise",
+    "hashedOnchainId": "0x1234567890abcdef1234567890abcdef12345678",
+    "depositData": {
+      "accountId": "12345678",
+      "accountHolderName": "Test User"
+    }
+  }'
+```
+
+Grab the encrypted credentials from the response and hit the `/validator/verify-payment` endpoint to verify a payment:
+
+```bash
+curl -X POST http://localhost:8080/v1/validator/verify-payment \
+  -H "Content-Type: application/json" \
+  -d '{
+    "encryptedCredentials": "YOUR_ENCRYPTED_CREDENTIALS_HERE_FROM_PREVIOUS_STEP",
+    "wisePaymentDetails": {
+      "amount": "11.44",
+      "currency": "EUR",
+      "timestamp": "2025-03-30T06:40:57.279Z",
+      "recipientId": "17123946"
+    }
+  }'
+```
+
+Grab the quote from the response and verify it on `proof.t16z.com`.
+
 ### Testing
 
 - Run tests with:
