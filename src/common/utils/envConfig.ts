@@ -11,7 +11,7 @@ export const env = cleanEnv(process.env, {
   COMMON_RATE_LIMIT_MAX_REQUESTS: num({ default: 100 }),
   COMMON_RATE_LIMIT_WINDOW_MS: num({ default: 60000 }),
   PRIVATE_KEY: str({ default: "" }),
-  CONTRACT_ENVIRONMENT: str({ default: "localhardhat" })
+  CONTRACT_ENVIRONMENT: str({ default: "localhardhat" }),
   PRIVY_APP_ID: str({ default: "" }),
   PRIVY_JWT_VERIFICATION_KEY: str({ default: "" }),
   DISABLE_JWT_AUTH: bool({ default: false }),
