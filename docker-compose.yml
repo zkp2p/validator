@@ -1,12 +1,15 @@
 version: '3'
 services:
   validator:
-    image: zkp2p/validator-0.0.1-rc1
+    image: 0xsachink/validator:0.0.1-rc2
     ports:
       - 8083:8080
     volumes:
-      - /Users/sachin/sockets/tappd.sock:/tmp/tappd.sock
+      - /Users/sachin/sockets/tappd.sock:/var/run/tappd.sock
     environment:
-      - DSTACK_SIMULATOR_ENDPOINT=/tmp/tappd.sock
+      - NODE_ENV=production
+      - PORT=8080
+      - HOST=0.0.0.0
+      - CORS_ORIGIN=http://localhost:*
       - WISE_API_BASE_URL=https://api.wise.com
       - LOG_LEVEL=debug

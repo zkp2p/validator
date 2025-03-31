@@ -5,6 +5,16 @@ import helmet from "helmet";
 const server = app.listen(env.PORT, () => {
   const { NODE_ENV, HOST, PORT } = env;
   logger.info(`Server (${NODE_ENV}) running on port http://${HOST}:${PORT}`);
+
+  logger.info("Environment Variables:");
+  Object.entries(env).forEach(([key, value]) => {
+    // Don't log sensitive information like private keys
+    if (key.toLowerCase().includes("key") || key.toLowerCase().includes("secret")) {
+      logger.info(`\t${key}: [REDACTED]`);
+    } else {
+      logger.info(`\t${key}: ${value}`);
+    }
+  });
 });
 
 // Add this before your route definitions
