@@ -7,14 +7,11 @@ RUN corepack enable
 # Create app directory
 WORKDIR /usr/src/app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
-
-# Install app dependencies
-RUN yarn install
-
-# Bundle app source
+# Copy all files at once
 COPY . .
+
+# Install dependencies with all workspace files present
+RUN yarn install
 
 # Build the TypeScript files
 RUN yarn build
