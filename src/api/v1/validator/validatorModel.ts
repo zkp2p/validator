@@ -28,21 +28,23 @@ export const VerifyPaymentRequestSchema = z.object({
   wisePaymentDetails: WisePaymentDetailsRequestSchema,
 });
 
-export const QuoteSchema = z.object({
-  platform: z.string(),
-  paymentId: z.string(),
-  amount: z.string(),
-  currency: z.string(),
-  date: z.string(),
-  status: z.string(),
-  recipientId: z.string(),
-  verifiedAt: z.string()
-});
+// export const QuoteSchema = z.object({
+//   platform: z.string(),
+//   paymentId: z.string(),
+//   amount: z.string(),
+//   currency: z.string(),
+//   date: z.string(),
+//   status: z.string(),
+//   recipientId: z.string(),
+//   verifiedAt: z.string()
+// });
+
+/// Returning string is better cause we can hash it and easily match it to the RA's userData
 
 // Schema for verification response
 export const VerifyPaymentResponseSchema = z.object({
   verified: z.boolean(),
-  quote: QuoteSchema.optional(), // Use QuoteSchema type
+  quote: z.string().optional(),
   raReport: z.string().optional(), // Remote Attestation report
 });
 

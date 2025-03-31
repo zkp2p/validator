@@ -315,20 +315,8 @@ export class ValidatorFactory {
 
       const client = this.createDstackClient();
 
-      // Add metadata to the quote
-      const metadata = {
-        timestamp: new Date().toISOString(),
-        userDataHash: userData ? 'sha256' : 'none',
-        version: '1.0.0'
-      };
-
-      // Combine the userData with metadata
-      const dataToQuote = userData ?
-        JSON.stringify({ userData, metadata }) :
-        JSON.stringify({ metadata });
-
       // Get the quote from the TEE
-      const quoteResult = await client.tdxQuote(dataToQuote, 'sha256');
+      const quoteResult = await client.tdxQuote(userData, 'sha256');
 
       if (!quoteResult || !quoteResult.quote) {
         throw new Error('Failed to generate quote: Empty result received');

@@ -77,10 +77,11 @@ export class ValidatorService {
         logger.info("Payment verified successfully");
 
         const quote = this.generateTransactionQuote(matchingTransaction);
-        const raReport = await this.generateRAReport(JSON.stringify(quote));
+        const quoteString = JSON.stringify(quote);
+        const raReport = await this.generateRAReport(quoteString);
         return ServiceResponse.success("Payment verified", {
           verified: true,
-          quote,
+          quote: quoteString,
           raReport
         });
       } else {
